@@ -38,7 +38,7 @@ func main() {
 	defer db.Close()
 
 	sqlStmt := `
-	create table if not exists lookups (id integer not null primary key, time text, domain text);
+	create table if not exists lookups (id integer not null primary key, time text, domain text, ip text);
 	`
 	_, err = db.Exec(sqlStmt)
 	if err != nil {
@@ -109,12 +109,12 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	stmt, err := tx.Prepare("INSERT INTO lookups (time, domain) VALUES (?, ?)")
+	stmt, err := tx.Prepare("INSERT INTO lookups (time, domain, ip) VALUES (?, ?, ?)")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer stmt.Close()
-	_, err = stmt.Exec(time.Now(), string(request.Questions[0].Name))
+	_, err = stmt.Exec(time.Now(), string(request.Questions[0].Name), clientAddr.String())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -126,13 +126,15 @@ func writeToHTML() {
 	// Write to the html file
 	f, err := os.Create("www/index.html")
 
+	f.WriteString("<!DOCTYPE html><html><head><style>table {  font-family: arial, sans-serif;  border-collapse: collapse;  width: 100%;}td, th {  border: 1px solid #dddddd;  text-align: left;  padding: 8px;}tr:nth-child(even) {  background-color: #dddddd;}</style></head><body><h2>DNS Logger</h2><table>")
+
 	db, err := sql.Open("sqlite3", "./lookups.db")
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer db.Close()
 
-	rows, err := db.Query("select domain, time from lookups order by id DESC LIMIT 100")
+	rows, err := db.Query("select domain, time, ip from lookups order by id DESC LIMIT 100")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -141,7 +143,8 @@ func writeToHTML() {
 	for rows.Next() {
 		var time string
 		var domain string
-		err = rows.Scan(&domain, &time)
+		var ip string
+		err = rows.Scan(&domain, &time, &ip)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -150,7 +153,7 @@ func writeToHTML() {
 			fmt.Println(err)
 			return
 		}
-		l, err := f.WriteString("<li>" + html.EscapeString(domain) + "---------->" + html.EscapeString(time) +"</li>\n")
+		l, err := f.WriteString("<tr>" + "<td>" + html.EscapeString(domain) + "</td><td>" + html.EscapeString(time) + "</td><td>" + html.EscapeString(ip) + "</td>" + "</tr>\n")
 		fmt.Printf("wrote %d bytes\n", l)
 		if err != nil {
 			fmt.Println(err)
@@ -159,6 +162,7 @@ func writeToHTML() {
 		}
 
 	}
+	f.WriteString("</table></body></html>")
 }
 
 // func addRecord(database *database, domain *string) {
