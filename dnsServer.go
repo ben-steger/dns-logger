@@ -1,6 +1,6 @@
 package main
 
-// Found here: https://medium.com/@openmohan/dns-basics-and-building-simple-dns-server-in-go-6cb8e1cfe461
+// Derived from here: https://medium.com/@openmohan/dns-basics-and-building-simple-dns-server-in-go-6cb8e1cfe461
 
 import (
 	"fmt"
@@ -19,16 +19,9 @@ import (
 var records map[string]string
 
 func main() {
-	// Initialize the database if this hasn't been done already
-	// database, err := sql.Open("sqlite3", "./foo.db")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-    // statement, _ := database.Prepare("CREATE TABLE IF NOT EXISTS dns (id INTEGER PRIMARY KEY, time TEXT, domain_lookup TEXT)")
-    // statement.Exec()
 
 	records = map[string]string{
-		"meta.praetorain.com": "169.254.169.254",
+		"example.com": "1.1.1.1",
 	}
 
 	db, err := sql.Open("sqlite3", "./lookups.db")
@@ -164,7 +157,3 @@ func writeToHTML() {
 	}
 	f.WriteString("</table></body></html>")
 }
-
-// func addRecord(database *database, domain *string) {
-
-// }
