@@ -21,7 +21,7 @@ var records map[string]string
 func main() {
 
 	records = map[string]string{
-		"example.com": "1.1.1.1",
+		"google.com": "1.1.1.1", // Bogus record example (returns 0.0.0.0 otherwise)
 	}
 
 	db, err := sql.Open("sqlite3", "./lookups.db")
