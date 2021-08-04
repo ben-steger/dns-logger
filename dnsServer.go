@@ -75,7 +75,12 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS) {
 	dnsAnswer.Type = layers.DNSTypeA
 	dnsAnswer.IP = a
 	dnsAnswer.Name = []byte(request.Questions[0].Name)
-	fmt.Println(string(request.Questions[0].Name))
+	
+	if(layers.DNSClassIN == 0) {	// 0 is the default of uint16 which is the value of layers.DNSClass types
+		fmt.Println("(-) Received malformed DNS lookup")
+		return	// Don't respond to lookup, it was malformed
+	}
+	fmt.Println("(+) Received DNS lookup for: " + string(request.Questions[0].Name))
 	dnsAnswer.Class = layers.DNSClassIN
 	replyMess.QR = true
 	replyMess.ANCount = 1
@@ -133,6 +138,8 @@ func writeToHTML() {
 	}
 	defer rows.Close()
 
+	var rowCount int
+	rowCount = 0
 	for rows.Next() {
 		var time string
 		var domain string
@@ -147,13 +154,13 @@ func writeToHTML() {
 			return
 		}
 		l, err := f.WriteString("<tr>" + "<td>" + html.EscapeString(domain) + "</td><td>" + html.EscapeString(time) + "</td><td>" + html.EscapeString(ip) + "</td>" + "</tr>\n")
-		fmt.Printf("wrote %d bytes\n", l)
-		if err != nil {
+		if (err != nil || l < 1) {
 			fmt.Println(err)
 			f.Close()
 			return
 		}
-
+		rowCount += 1
 	}
 	f.WriteString("</table></body></html>")
+	fmt.Printf("(i) Wrote %d queries to wwww/index.html\n", rowCount)
 }
