@@ -16,14 +16,7 @@ import (
 	"html"
 )
 
-var records map[string]string
-
 func main() {
-
-	records = map[string]string{
-		"google.com": "1.1.1.1", // Bogus record example (returns 0.0.0.0 otherwise)
-	}
-
 	db, err := sql.Open("sqlite3", "./lookups.db")
 	if err != nil {
 		log.Fatal(err)
@@ -39,11 +32,12 @@ func main() {
 		return
 	}
 
-	writeToHTML() // Keep the html file up to date
+	writeToHTML() 		// Keep the html file up to date
+	setUpRecordTable() // Get the record table setup if it isn't already
 
 	//Listen on UDP Port
 	addr := net.UDPAddr{
-		Port: 53,
+		Port: 533,
 		IP:   net.ParseIP("0.0.0.0"),
 	}
 	u, _ := net.ListenUDP("udp", &addr)
@@ -56,11 +50,19 @@ func main() {
 		packet := gopacket.NewPacket(tmp, layers.LayerTypeDNS, gopacket.Default)
 		dnsPacket := packet.Layer(layers.LayerTypeDNS)
 		tcp, _ := dnsPacket.(*layers.DNS)
-		serveDNS(u, clientAddr, tcp)
+		serveDNS(u, clientAddr, tcp, db)
 	}
 }
 
-func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS) {
+func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS, db *sql.DB) {
+	// Prep the database conneciton
+	// db, err := sql.Open("sqlite3", "./lookups.db")
+	// fmt.Println("%T", db)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer db.Close()
+
 	replyMess := request
 	var dnsAnswer layers.DNSResourceRecord
 	dnsAnswer.Type = layers.DNSTypeA
@@ -69,11 +71,19 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS) {
 		fmt.Println("(-) Received malformed DNS lookup")
 		return	// Don't respond to lookup, it was malformed
 	}
-
-	var ip string
 	var err error
+	var ip string
 	var ok bool
-	ip, ok = records[string(request.Questions[0].Name)]
+	// ip, ok = records[string(request.Questions[0].Name)]
+
+	row := db.QueryRow("select ip from records where domain = ?", (string(request.Questions[0].Name)))
+	// defer rows.Close()
+
+	err = row.Scan(&ip)
+	if err != nil {
+		fmt.Println(err)
+	}
+
 	if !ok {
 		//Todo: Log no data present for the IP and handle:todo
 	}
@@ -99,12 +109,6 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS) {
 	u.WriteTo(buf.Bytes(), clientAddr)
 
 	// Store the lookup in the db
-	db, err := sql.Open("sqlite3", "./lookups.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
 	tx, err := db.Begin()
 	if err != nil {
 		log.Fatal(err)
@@ -165,4 +169,44 @@ func writeToHTML() {
 	}
 	f.WriteString("</table></body></html>")
 	fmt.Printf("(i) Wrote %d queries to wwww/index.html\n", rowCount)
+}
+
+func setUpRecordTable() {
+	db, err := sql.Open("sqlite3", "./lookups.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	sqlStmt := `
+	create table if not exists records (id integer not null primary key, domain text, ip text);
+	`
+	_, err = db.Exec(sqlStmt)
+	if err != nil {
+		log.Printf("%q: %s\n", err, sqlStmt)
+		return
+	}
+
+	records := map[string]string{
+		"google.com": "1.1.1.1", // Bogus record example (returns 0.0.0.0 otherwise)
+		"meta.example.com": "169.254.169.254", // Bogus record example (returns 0.0.0.0 otherwise)
+	}
+
+	tx, err := db.Begin()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for domain, ip := range records {
+		stmt, err := tx.Prepare("INSERT INTO records (domain, ip) VALUES (?, ?)")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer stmt.Close()
+		_, err = stmt.Exec(domain, ip)
+		if err != nil {
+			log.Fatal(err)
+		}
+	}
+	tx.Commit()
 }
