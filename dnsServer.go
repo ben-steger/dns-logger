@@ -37,7 +37,7 @@ func main() {
 
 	//Listen on UDP Port
 	addr := net.UDPAddr{
-		Port: 533,
+		Port: 53,
 		IP:   net.ParseIP("0.0.0.0"),
 	}
 	u, _ := net.ListenUDP("udp", &addr)
