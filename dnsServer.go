@@ -67,7 +67,7 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS, db *sql.
 	var dnsAnswer layers.DNSResourceRecord
 	dnsAnswer.Type = layers.DNSTypeA
 
-	if(request == nil) {	// 0 is the default of uint16 which is the value of layers.DNSClass types
+	if(request == nil || len(request.Questions) == 0) {	// 0 is the default of uint16 which is the value of layers.DNSClass types
 		fmt.Println("(-) Received malformed DNS lookup")
 		return	// Don't respond to lookup, it was malformed
 	}
@@ -81,7 +81,7 @@ func serveDNS(u *net.UDPConn, clientAddr net.Addr, request *layers.DNS, db *sql.
 
 	err = row.Scan(&ip)
 	if err != nil {
-		fmt.Println(err)
+		fmt.Println("(i) No record for " + string(request.Questions[0].Name))
 	}
 
 	if !ok {
